@@ -28,6 +28,7 @@
 #include <functional>
 #include <mutex>
 
+#include "../core/AppPaths.h"
 #include "../core/DngWriter.h"
 #include "../core/ExportSettings.h"
 #include "../core/FrameIndex.h"
@@ -45,16 +46,18 @@ using hqcore::LightController;
 
 namespace {
 constexpr int kHistogramAutoOffMs = 60 * 60 * 1000; // 1 hour
-constexpr char kSettingsPath[] = "hq-camera-settings.json";
-constexpr char kPreferencesPath[] = "preferences.json";
-constexpr char kHardwareConfigPath[] = "hardwarecfg.json";
-constexpr char kFtpConfigPath[] = "ftp.json";
+// Config files live in ~/.config/c-gugusse (see core/AppPaths.h); main()
+// seeds any missing one from the installed defaults before this window opens.
+const std::string kSettingsPath = hqcore::configFile("hq-camera-settings.json");
+const std::string kPreferencesPath = hqcore::configFile("preferences.json");
+const std::string kHardwareConfigPath = hqcore::configFile("hardwarecfg.json");
+const std::string kFtpConfigPath = hqcore::configFile("ftp.json");
 constexpr char kShmDir[] = "/dev/shm";
 constexpr char kShmCompleteDir[] = "/dev/shm/complete";
-constexpr char kCcwIconPath[] = "assets/icons/ccw.png";
-constexpr char kCwIconPath[] = "assets/icons/cw.png";
-constexpr char kPowerOnIconPath[] = "assets/icons/powerOn.png";
-constexpr char kPowerOffIconPath[] = "assets/icons/powerOff.png";
+const QString kCcwIconPath = QString::fromStdString(hqcore::assetFile("icons/ccw.png"));
+const QString kCwIconPath = QString::fromStdString(hqcore::assetFile("icons/cw.png"));
+const QString kPowerOnIconPath = QString::fromStdString(hqcore::assetFile("icons/powerOn.png"));
+const QString kPowerOffIconPath = QString::fromStdString(hqcore::assetFile("icons/powerOff.png"));
 
 // Longest exposure offered by the slider. The camera itself accepts more
 // on paper, but longer than this makes no sense for a backlit film frame
@@ -319,11 +322,11 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	} else {
 		filmFormatCombo_->setEnabled(false);
 		filmFormatCombo_->setToolTip(
-			QString("No film formats found in %1.").arg(kHardwareConfigPath));
+			QString("No film formats found in %1.").arg(QString::fromStdString(kHardwareConfigPath)));
 		sequenceButton_->setEnabled(false);
 		sequenceButton_->setToolTip(
 			QString("Sequence unavailable: %1 has no film formats.")
-				.arg(kHardwareConfigPath));
+				.arg(QString::fromStdString(kHardwareConfigPath)));
 	}
 
 	// Capture format: saved preference, else DNG (the full-quality one).
@@ -878,7 +881,7 @@ void CaptureWindow::applyExportSettings() {
 		projectEdit_->setToolTip(
 			QString("FTP upload unavailable (%1 missing or invalid) - "
 				"captures still save to %2. See \"Other settings...\".")
-				.arg(kFtpConfigPath, kShmCompleteDir));
+				.arg(QString::fromStdString(kFtpConfigPath), kShmCompleteDir));
 	}
 
 	// A different destination (or first start) - continue its numbering.
@@ -950,9 +953,9 @@ void CaptureWindow::onOtherSettingsClicked() {
 	const auto values = dialog.values();
 	QStringList failures;
 	if (!values.ftp.save(kFtpConfigPath))
-		failures << QString("Could not write %1.").arg(kFtpConfigPath);
+		failures << QString("Could not write %1.").arg(QString::fromStdString(kFtpConfigPath));
 	if (!values.exportSettings.save(kHardwareConfigPath))
-		failures << QString("Could not write the export mode to %1.").arg(kHardwareConfigPath);
+		failures << QString("Could not write the export mode to %1.").arg(QString::fromStdString(kHardwareConfigPath));
 	if (hwConfig && values.invert != initial.invert) {
 		if (hqcore::HardwareConfig::saveMotorInverts(kHardwareConfigPath, values.invert[0],
 							     values.invert[1], values.invert[2])) {
@@ -962,7 +965,7 @@ void CaptureWindow::onOtherSettingsClicked() {
 			}
 		} else {
 			failures << QString("Could not write the motor directions to %1.")
-					    .arg(kHardwareConfigPath);
+					    .arg(QString::fromStdString(kHardwareConfigPath));
 		}
 	}
 
@@ -989,7 +992,7 @@ bool CaptureWindow::applyFilmFormat(const QString &name) {
 		sequenceButton_->setEnabled(false);
 		sequenceButton_->setToolTip(
 			QString("Sequence unavailable: %1 has no valid \"%2\" film format.")
-				.arg(kHardwareConfigPath, name));
+				.arg(QString::fromStdString(kHardwareConfigPath), name));
 		return false;
 	}
 
@@ -1085,7 +1088,7 @@ void CaptureWindow::setUpMotors(QWidget *central, QVBoxLayout *layout) {
 	if (!hwConfig) {
 		layout->addWidget(new QLabel(
 			QString("Motor controls unavailable (%1 missing or invalid).")
-				.arg(kHardwareConfigPath),
+				.arg(QString::fromStdString(kHardwareConfigPath)),
 			central));
 		return;
 	}

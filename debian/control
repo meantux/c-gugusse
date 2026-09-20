@@ -1,0 +1,38 @@
+Source: c-gugusse
+Section: graphics
+Priority: optional
+Maintainer: c-gugusse packager <deniscarl@gmail.com>
+Build-Depends:
+ cmake (>= 3.16),
+ debhelper-compat (= 13),
+ g++ (>= 4:12),
+ libcamera-dev,
+ libcurl4-openssl-dev,
+ libgpiod-dev (>= 2.0),
+ libjpeg-dev,
+ libtiff-dev,
+ nlohmann-json3-dev,
+ pkgconf,
+ qt6-base-dev,
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+
+Package: c-gugusse
+Architecture: arm64
+Depends:
+ libcamera-ipa,
+ qt6-wayland,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ rpicam-apps,
+Description: film scanner capture software for the Raspberry Pi HQ camera
+ Capture software for a film scanner built around a Raspberry Pi and the
+ Raspberry Pi HQ camera (Sony IMX477), driven through libcamera.
+ .
+ Features a live preview with a raw 12-bit histogram, manual exposure and
+ white balance, DNG or JPG capture, motor-driven film transport over GPIO,
+ and FTP or local-copy export of the captured frames.
+ .
+ Configuration is kept per user in ~/.config/c-gugusse/ and is created from
+ the defaults in /usr/share/c-gugusse/defaults/ on first run.

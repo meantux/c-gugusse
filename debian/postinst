@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+# Give the desktop user access to the camera (video) and the GPIO lines that
+# drive the lights and motors (gpio). A package script can't know who will run
+# the app, so: the user who ran "sudo apt install", else the first regular
+# user (uid 1000, the Raspberry Pi OS default). Add others by hand with
+# "sudo adduser <user> gpio".
+if [ "$1" = "configure" ]; then
+    user=""
+    if [ -n "${SUDO_USER:-}" ] && [ "$SUDO_USER" != "root" ]; then
+        user="$SUDO_USER"
+    else
+        user="$(getent passwd 1000 | cut -d: -f1 || true)"
+    fi
+
+    if [ -n "$user" ] && getent passwd "$user" >/dev/null; then
+        for group in gpio video; do
+            if getent group "$group" >/dev/null && ! id -nG "$user" | tr ' ' '\n' | grep -qx "$group"; then
+                adduser --quiet "$user" "$group" || true
+                echo "c-gugusse: added $user to group $group (log out and back in for it to apply)"
+            fi
+        done
+    fi
+fi
+
+#DEBHELPER#
+
+exit 0

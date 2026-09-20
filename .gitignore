@@ -1,5 +1,10 @@
 build/
-ftp.json
-hardwarecfg.json
-hq-camera-settings.json
-preferences.json
+debian/.debhelper/
+debian/c-gugusse/
+debian/*.debhelper.log
+debian/*.substvars
+debian/files
+debian/debhelper-build-stamp
+*.deb
+*.buildinfo
+*.changes

@@ -23,23 +23,43 @@ normally needed. Check with `rpicam-hello --list-cameras`. If the camera is
 not listed, add `dtoverlay=imx477` under `[all]` in `/boot/firmware/config.txt`
 and reboot.
 
+## Install (Debian package)
+
+Download `c-gugusse_<version>_arm64.deb` from the repository's *Releases*
+page, then on the Raspberry Pi (Raspberry Pi OS, Debian 13 trixie, 64-bit):
+
+    sudo apt install ./c-gugusse_<version>_arm64.deb
+
+`apt` pulls in all dependencies. The package adds the user who ran `sudo`
+(or the first user, uid 1000) to the `gpio` and `video` groups - log out and
+back in once. Other users: `sudo adduser <user> gpio && sudo adduser <user> video`.
+Start it from the menu (*Graphics > Gugusse film scanner*) or run `c-gugusse`.
+
+To build the package yourself, on the Pi: `./build-deb.sh` (result in `..`).
+Publishing a release: `git tag v0.1.0 && git push --tags` - GitHub Actions
+(`.github/workflows/deb.yml`) builds the `.deb` and attaches it to a Release.
+Bump `debian/changelog` (and `VERSION` in `app/CMakeLists.txt`) first.
+
+## Build from source (development)
+
 Install the build/runtime dependencies (see `libraries.list`):
 
     sudo apt update
     sudo apt install -y $(grep -v '^\s*#' libraries.list | grep -v '^\s*$')
 
-## Build
-
     cmake -S app -B app/build -DCMAKE_BUILD_TYPE=Release
     cmake --build app/build -j4
-
-## Run
-
-Run from this directory (config files and icons are found relative to it):
-
     ./app/build/c-gugusse
 
+Run from the build tree, the app uses the repo's `assets/` and `defaults/`;
+installed, it uses `/usr/share/c-gugusse/` (override with `C_GUGUSSE_DATA_DIR`).
+
 ## Configuration files
+
+They live in `~/.config/c-gugusse/` (or `$XDG_CONFIG_HOME/c-gugusse/`). Any
+file that is missing at startup is created from `defaults/` (installed as
+`/usr/share/c-gugusse/defaults/`); existing files are never overwritten, and
+they are kept when the package is upgraded or removed.
 
 | File | Contents |
 |---|---|

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Gugusse film scanner
+Comment=Capture software for a Raspberry Pi HQ camera film scanner
+Exec=c-gugusse
+Icon=camera-photo
+Terminal=false
+Categories=Graphics;Photography;

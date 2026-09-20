@@ -1,0 +1,9 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: c-gugusse
+
+Files: *
+Copyright: 2026 c-gugusse packager <deniscarl@gmail.com>
+License: TODO
+ The licence for this software has not been chosen yet. Replace this
+ paragraph (and the "License: TODO" line) with the chosen licence before
+ publishing the package.
