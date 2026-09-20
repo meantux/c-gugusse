@@ -34,14 +34,15 @@ jobs:
           Components: main
           Signed-By: /usr/share/keyrings/raspberrypi-archive-keyring.pgp
           SRC
-          # Take libcamera from the Raspberry Pi repo (it is a fork, newer
-          # than Debian's); everything else stays on Debian.
+          # Take libcamera and the libraries it needs (libpisp, tflite) from the
+          # Raspberry Pi repo (a fork, newer than Debian's); everything else
+          # stays on Debian.
           cat > /etc/apt/preferences.d/raspi <<'PIN'
           Package: *
           Pin: origin archive.raspberrypi.com
           Pin-Priority: 100
 
-          Package: libcamera*
+          Package: libcamera* libpisp* libtensorflow-lite*
           Pin: origin archive.raspberrypi.com
           Pin-Priority: 900
           PIN
