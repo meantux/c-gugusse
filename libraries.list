@@ -1,0 +1,37 @@
+# Debian packages needed to build and run the software on a Raspberry Pi 4B
+# (Raspberry Pi OS / Debian 13 "trixie", 64-bit) with a Raspberry Pi HQ camera.
+#
+# Install everything with:
+#     sudo apt update && sudo apt install -y $(grep -v '^\s*#' libraries.list | grep -v '^\s*$')
+#
+# One package per line; lines starting with '#' are comments.
+
+# --- Toolchain ---
+build-essential
+cmake
+pkg-config
+
+# --- Camera: libcamera C++ API (the HQ camera is driven through libcamera's
+#     Raspberry Pi pipeline handler + IPA, which gives us the ISP, white
+#     balance gains, brightness/contrast/saturation) ---
+libcamera-dev
+libcamera-ipa
+libcamera-tools
+# Handy for checking the camera works outside our software (rpicam-hello --list-cameras)
+rpicam-apps
+
+# --- Image writers ---
+libtiff-dev
+libjpeg-dev
+
+# --- GUI ---
+qt6-base-dev
+qt6-wayland
+
+# --- GPIO (lights + stepper motors); libgpiod 2.x on trixie ---
+libgpiod-dev
+gpiod
+
+# --- JSON config files, FTP upload ---
+nlohmann-json3-dev
+libcurl4-openssl-dev
