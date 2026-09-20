@@ -21,15 +21,18 @@ jobs:
       - name: Add the Raspberry Pi apt repository
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl gnupg
-          curl -fsSL https://archive.raspberrypi.com/debian/raspberrypi.gpg.key \
-            | gpg --dearmor -o /usr/share/keyrings/raspberrypi-archive-keyring.gpg
+          # The signing key is kept in the repo (copied from Raspberry Pi OS's
+          # raspberrypi-archive-keyring package): the one served at
+          # archive.raspberrypi.com/debian/raspberrypi.gpg.key still has SHA1
+          # signatures, which trixie's apt refuses.
+          install -D -m 644 packaging/raspberrypi-archive-keyring.pgp \
+            /usr/share/keyrings/raspberrypi-archive-keyring.pgp
           cat > /etc/apt/sources.list.d/raspi.sources <<'SRC'
           Types: deb
           URIs: http://archive.raspberrypi.com/debian/
           Suites: trixie
           Components: main
-          Signed-By: /usr/share/keyrings/raspberrypi-archive-keyring.gpg
+          Signed-By: /usr/share/keyrings/raspberrypi-archive-keyring.pgp
           SRC
           # Take libcamera from the Raspberry Pi repo (it is a fork, newer
           # than Debian's); everything else stays on Debian.
