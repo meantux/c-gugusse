@@ -1,9 +1,9 @@
-# Film scanner capture software - Raspberry Pi HQ camera
+# Film capture software for the Gugusse Compact with the Raspberry Pi HQ camera
 
-Capture software for a film scanner built around a Raspberry Pi and the
-**Raspberry Pi HQ camera** (Sony IMX477), driven through libcamera. Runs on a
-Raspberry Pi 4B (Raspberry Pi OS / Debian 13, 64-bit); the film is lit with
-white LEDs.
+[![Latest release](https://img.shields.io/github/v/release/meantux/c-gugusse)](https://github.com/meantux/c-gugusse/releases/latest)
+**[Download the latest .deb](https://github.com/meantux/c-gugusse/releases/latest)** - all versions on the [Releases page](https://github.com/meantux/c-gugusse/releases).
+
+Capture software for the Gugusse Compact, a film scanner built around a Raspberry Pi and the **Raspberry Pi HQ camera** (Sony IMX477), driven through libcamera. Runs on a Raspberry Pi 4B (Raspberry Pi OS / Debian 13, 64-bit); the film is lit with white LEDs. Find the STL files and the instructions to build your own Gugusse Compact at [deniscarl.com](http://www.deniscarl.com) for free and without any subscriptions.
 
 ## Features
 
@@ -25,8 +25,9 @@ and reboot.
 
 ## Install (Debian package)
 
-Download `c-gugusse_<version>_arm64.deb` from the repository's *Releases*
-page, then on the Raspberry Pi (Raspberry Pi OS, Debian 13 trixie, 64-bit):
+Download `c-gugusse_<version>_arm64.deb` from the
+[Releases page](https://github.com/meantux/c-gugusse/releases) (the newest is at
+the top, under *Assets*), then on the Raspberry Pi (Raspberry Pi OS, Debian 13 trixie, 64-bit):
 
     sudo apt install ./c-gugusse_<version>_arm64.deb
 
