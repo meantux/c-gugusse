@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
+#include <vector>
 
 namespace hqcore {
 
@@ -45,11 +47,24 @@ constexpr uint16_t kIlluminantD65 = 21; // EXIF LightSource / DNG CalibrationIll
 
 constexpr int kRowsPerStrip = 64;
 
+// Packs 12-bit samples MSB-first, two pixels in three bytes (the TIFF/DNG
+// layout for BitsPerSample=12):  p0[11:4] | p0[3:0]p1[11:8] | p1[7:0].
+// `count` must be even. Bits above bit 11 are ignored.
+void pack12(const uint16_t *in, size_t count, uint8_t *out) {
+	for (size_t i = 0; i < count; i += 2) {
+		const uint16_t a = in[i] & 0x0FFF;
+		const uint16_t b = in[i + 1] & 0x0FFF;
+		*out++ = static_cast<uint8_t>(a >> 4);
+		*out++ = static_cast<uint8_t>(((a & 0x0F) << 4) | (b >> 8));
+		*out++ = static_cast<uint8_t>(b & 0xFF);
+	}
+}
+
 } // namespace
 
 bool writeDng(const std::string &path, int width, int height,
 	      const std::vector<uint16_t> &pixels, const DngMetadata &meta) {
-	if (width < 2 || height < 2 ||
+	if (width < 2 || height < 2 || (width & 1) ||
 	    pixels.size() != static_cast<size_t>(width) * static_cast<size_t>(height)) {
 		return false;
 	}
@@ -101,7 +116,7 @@ bool writeDng(const std::string &path, int width, int height,
 	ok &= TIFFSetField(tif, TIFFTAG_SUBFILETYPE, 0) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, static_cast<uint32_t>(width)) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_IMAGELENGTH, static_cast<uint32_t>(height)) == 1;
-	ok &= TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 16) == 1;
+	ok &= TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 12) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_CFA) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1) == 1;
@@ -130,15 +145,16 @@ bool writeDng(const std::string &path, int width, int height,
 	if (!ok)
 		return fail();
 
-	const size_t rowBytes = static_cast<size_t>(width) * sizeof(uint16_t);
+	// 12 bits per sample, packed: 3 bytes per pair of pixels.
+	const size_t rowBytes = static_cast<size_t>(width) / 2 * 3;
+	std::vector<uint8_t> packed(rowBytes * kRowsPerStrip);
 	for (int row = 0; row < height; row += kRowsPerStrip) {
 		const int rows = std::min(kRowsPerStrip, height - row);
 		const tmsize_t bytes = static_cast<tmsize_t>(rowBytes) * rows;
-		// TIFFWriteEncodedStrip wants a non-const buffer but doesn't modify
-		// it for uncompressed data.
-		void *src = const_cast<uint16_t *>(pixels.data() + static_cast<size_t>(row) * width);
-		if (TIFFWriteEncodedStrip(tif, static_cast<tstrip_t>(row / kRowsPerStrip), src, bytes) ==
-		    -1) {
+		pack12(pixels.data() + static_cast<size_t>(row) * width,
+		       static_cast<size_t>(rows) * width, packed.data());
+		if (TIFFWriteEncodedStrip(tif, static_cast<tstrip_t>(row / kRowsPerStrip),
+					  packed.data(), bytes) == -1) {
 			return fail();
 		}
 	}

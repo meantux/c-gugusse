@@ -128,8 +128,12 @@ IndexLookup lookupNextIndexFtp(const FtpConfig &config, const std::string &proje
 	curl_easy_setopt(curl, CURLOPT_DIRLISTONLY, 1L); // names only (NLST)
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, appendToString);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, &listing);
-	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
-	curl_easy_setopt(curl, CURLOPT_FTP_RESPONSE_TIMEOUT, 30L);
+	// One overall limit (CURLOPT_TIMEOUT) so the countdown shown to the
+	// operator is the true worst case; the others just don't cut it shorter.
+	curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(kFtpLookupTimeoutSeconds));
+	curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, static_cast<long>(kFtpLookupTimeoutSeconds));
+	curl_easy_setopt(curl, CURLOPT_FTP_RESPONSE_TIMEOUT,
+			 static_cast<long>(kFtpLookupTimeoutSeconds));
 	curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errorBuffer);
 	const CURLcode res = curl_easy_perform(curl);
 	curl_easy_cleanup(curl);

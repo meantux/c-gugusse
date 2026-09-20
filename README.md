@@ -100,3 +100,10 @@ found there (`00041.dng` -> next frame is 42). A new or empty project starts at
 off for the moment the listing takes; if the destination can't be checked
 (server unreachable, drive not mounted) a warning says so and numbering simply
 continues from its current value.
+
+The number the next frame will get is always shown next to the project name
+(*Next frame: 00042*). While the check is running - up to 90 s for an FTP
+server that is asleep, with a countdown - pressing *Start Sequence* is not
+lost: the button turns into *Cancel start* and the sequence begins by itself
+as soon as the numbering is known (press it again to cancel). If the check
+fails, nothing starts automatically; the number is then marked *unverified*.

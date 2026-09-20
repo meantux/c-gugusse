@@ -36,9 +36,10 @@ struct DngMetadata {
 	std::string description; // ImageDescription tag; free text
 };
 
-// Writes an uncompressed, single-image DNG (16-bit samples holding the
-// sensor's 12-bit values in their low bits) via libtiff. `pixels` holds
-// width*height samples, row-major, no padding.
+// Writes an uncompressed, single-image DNG via libtiff, with the sensor's
+// 12-bit values packed (two pixels in three bytes, 1.5 bytes/pixel).
+// `pixels` holds width*height samples in the low 12 bits of each uint16,
+// row-major, no padding; `width` must be even.
 //
 // Returns false on any failure (bad size, I/O error, libtiff error).
 bool writeDng(const std::string &path, int width, int height,

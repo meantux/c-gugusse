@@ -7,6 +7,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -100,6 +101,9 @@ private slots:
 	void onMotorPowerClicked(int index);
 	void onProjectNameEdited();
 	void onSequenceButtonClicked();
+	// Checks and launches the sequence (the part of a Start press that
+	// follows the start-index check).
+	void startSequence();
 	void onEmergencyStopClicked();
 	void onSequenceStatusChanged(QString text);
 	void onSequenceFinished();
@@ -272,6 +276,23 @@ private:
 	// changes.
 	void refreshStartIndex();
 	bool indexLookupPending_ = false;
+	// Start Sequence pressed while the lookup was still running: the
+	// sequence starts by itself when the lookup reports success (and is
+	// dropped if it fails or the project/destination changes meanwhile).
+	bool startWhenReady_ = false;
+	// Seconds the pending lookup may take at most (0: no known bound, e.g.
+	// a local directory) and when it began - drive the countdown.
+	int indexLookupTimeoutSec_ = 0;
+	std::chrono::steady_clock::time_point indexLookupStart_;
+	// The last lookup failed: the "next frame" number is only a guess.
+	bool indexLookupFailed_ = false;
+	// Shows the frame number the next capture gets, or the lookup's
+	// progress; refreshed by indexUiTimer_ (also keeps the Start button's
+	// text and the countdown current).
+	QLabel *nextFrameLabel_ = nullptr;
+	QTimer *indexUiTimer_ = nullptr;
+	void updateIndexUi();
+	void cancelStartWhenReady(const QString &why);
 	// Only the newest lookup's result is used (the project name can
 	// change again while an older one is still listing).
 	uint64_t indexLookupGeneration_ = 0;

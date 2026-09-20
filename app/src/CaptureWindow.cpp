@@ -168,6 +168,14 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	projectEdit_->setText(QDateTime::currentDateTime().toString("yyyyMMdd-HHmm"));
 	projectRow->addWidget(new QLabel("Project:", central));
 	projectRow->addWidget(projectEdit_, /*stretch=*/1);
+	nextFrameLabel_ = new QLabel(central);
+	nextFrameLabel_->setMinimumWidth(300);
+	nextFrameLabel_->setToolTip(
+		"The number the next captured frame gets. Numbering continues one past the "
+		"highest frame already in the project's destination directory, so a reused "
+		"project name is never overwritten.");
+	projectRow->addSpacing(8);
+	projectRow->addWidget(nextFrameLabel_);
 	projectRow->addSpacing(16);
 	projectRow->addWidget(new QLabel("Film format:", central));
 	filmFormatCombo_ = new QComboBox(central);
@@ -227,6 +235,10 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	QFont statusFont = statusLabel_->font();
 	statusFont.setPointSize(statusFont.pointSize() + 2);
 	statusLabel_->setFont(statusFont);
+	// Long messages wrap instead of widening the window past the screen
+	// (which pushes the buttons on the right out of view).
+	statusLabel_->setWordWrap(true);
+	statusLabel_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 	captureFrameButton_ = new QPushButton("Capture Frame", central);
 	captureFrameButton_->setMinimumWidth(180);
 	captureFrameButton_->setAutoDefault(true);
@@ -270,6 +282,10 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 		&CaptureWindow::onProjectNameEdited);
 	connect(sequenceButton_, &QPushButton::clicked, this,
 		&CaptureWindow::onSequenceButtonClicked);
+	indexUiTimer_ = new QTimer(this);
+	indexUiTimer_->setInterval(500);
+	connect(indexUiTimer_, &QTimer::timeout, this, &CaptureWindow::updateIndexUi);
+	indexUiTimer_->start();
 	connect(emergencyStopButton_, &QPushButton::clicked, this,
 		&CaptureWindow::onEmergencyStopClicked);
 	connect(this, &CaptureWindow::sequenceStatusChanged, this,
@@ -792,6 +808,8 @@ void CaptureWindow::refreshStartIndex() {
 	const std::string project = projectEdit_->text().toStdString();
 	lastIndexedProject_ = project;
 	const uint64_t generation = ++indexLookupGeneration_;
+	cancelStartWhenReady("Start cancelled: the project or export settings changed.");
+	indexLookupFailed_ = false;
 
 	// Same source of truth as applyExportSettings(): the destination is
 	// whatever the active exporter writes to. With no usable exporter
@@ -803,11 +821,15 @@ void CaptureWindow::refreshStartIndex() {
 		ftp = hqcore::FtpConfig::load(kFtpConfigPath);
 	if (!local && !ftp) {
 		indexLookupPending_ = false;
+		updateIndexUi();
 		return;
 	}
 
 	indexLookupPending_ = true;
+	indexLookupStart_ = std::chrono::steady_clock::now();
+	indexLookupTimeoutSec_ = local ? 0 : hqcore::kFtpLookupTimeoutSeconds;
 	statusBar()->showMessage("Checking the project directory for existing frames...");
+	updateIndexUi();
 
 	const std::vector<std::string> extensions(std::begin(kCaptureFormatSuffixes),
 						  std::end(kCaptureFormatSuffixes));
@@ -831,6 +853,7 @@ void CaptureWindow::refreshStartIndex() {
 				const QString where = QString::fromStdString(destination);
 				if (lookup.ok) {
 					frameCount_ = lookup.next;
+					updateIndexUi();
 					statusBar()->showMessage(
 						lookup.next == 0
 							? QString("%1: %2 - starting at frame 0.")
@@ -843,8 +866,15 @@ void CaptureWindow::refreshStartIndex() {
 								  .arg(lookup.next - 1)
 								  .arg(lookup.next),
 						8000);
+					if (startWhenReady_) {
+						startWhenReady_ = false;
+						startSequence();
+					}
 					return;
 				}
+				indexLookupFailed_ = true;
+				startWhenReady_ = false; // never start on a guessed number
+				updateIndexUi();
 				statusBar()->clearMessage();
 				QMessageBox::warning(
 					this, "Could not check the project directory",
@@ -1461,10 +1491,23 @@ void CaptureWindow::onSequenceButtonClicked() {
 	}
 
 	if (indexLookupPending_) {
-		statusLabel_->setText("Checking the project directory for existing frames - "
-				      "try again in a moment.");
+		// Not ready to number frames yet: remember the request (or take it
+		// back) instead of making the operator press again later.
+		if (startWhenReady_)
+			cancelStartWhenReady("Start cancelled.");
+		else {
+			startWhenReady_ = true;
+			updateIndexUi();
+		}
 		return;
 	}
+
+	startSequence();
+}
+
+void CaptureWindow::startSequence() {
+	if (sequenceRunning_ || indexLookupPending_)
+		return;
 
 	if (!filmFormat_ || !camera_ ||
 	    !motorRows_[MotorFeeder].motor || !motorRows_[MotorFilmdrive].motor ||
@@ -1509,6 +1552,68 @@ void CaptureWindow::onSequenceButtonClicked() {
 	if (sequenceThread_.joinable())
 		sequenceThread_.join();
 	sequenceThread_ = std::thread(&CaptureWindow::runSequenceLoop, this);
+}
+
+void CaptureWindow::cancelStartWhenReady(const QString &why) {
+	if (!startWhenReady_)
+		return;
+	startWhenReady_ = false;
+	statusLabel_->setText(why);
+	updateIndexUi();
+}
+
+// Keeps everything about the start-index check current: the "next frame"
+// label, the Start button's text, and - while a sequence start is waiting
+// for the check - a countdown in the status line.
+void CaptureWindow::updateIndexUi() {
+	if (!nextFrameLabel_)
+		return;
+
+	QString countdown;
+	if (indexLookupPending_ && indexLookupTimeoutSec_ > 0) {
+		const auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(
+					     std::chrono::steady_clock::now() - indexLookupStart_)
+					     .count();
+		const int left = std::max<int>(0, indexLookupTimeoutSec_ - static_cast<int>(elapsed));
+		countdown = QString("%1 s").arg(left);
+	}
+
+	if (indexLookupPending_) {
+		nextFrameLabel_->setText(
+			countdown.isEmpty()
+				? QString("Next frame: checking...")
+				: QString("Next frame: checking the FTP server... (%1 left)").arg(countdown));
+	} else if (indexLookupFailed_) {
+		nextFrameLabel_->setText(
+			QString("Next frame: %1 (unverified!)").arg(frameCount_.load(), 5, 10, QChar('0')));
+	} else {
+		nextFrameLabel_->setText(
+			QString("Next frame: %1").arg(frameCount_.load(), 5, 10, QChar('0')));
+	}
+
+	if (sequenceRunning_)
+		return; // the sequence owns the button text and the status line
+
+	if (!indexLookupPending_) {
+		sequenceButton_->setText("Start Sequence");
+		return;
+	}
+
+	if (startWhenReady_) {
+		sequenceButton_->setText(countdown.isEmpty() ? QString("Cancel start")
+							     : QString("Cancel start (%1)").arg(countdown));
+		statusLabel_->setText(
+			countdown.isEmpty()
+				? QString("Checking the project directory for existing frames. The "
+					  "sequence starts by itself as soon as the frame numbering is "
+					  "known.")
+				: QString("Waiting for the FTP server to answer (it may be waking up) - "
+					  "giving up in %1. The sequence starts by itself as soon as "
+					  "the frame numbering is known; press again to cancel.")
+					  .arg(countdown));
+	} else {
+		sequenceButton_->setText("Start when ready");
+	}
 }
 
 void CaptureWindow::onEmergencyStopClicked() {

@@ -41,9 +41,15 @@ IndexLookup lookupNextIndexLocal(const std::string &basePath, const std::string 
 				 const std::string &pendingDir,
 				 const std::vector<std::string> &extensions);
 
+// How long lookupNextIndexFtp() may take in total (connect, login, listing)
+// before giving up. Generous on purpose: a file server that is also the FTP
+// server may need most of a minute to wake up from sleep. The GUI shows a
+// countdown from this value.
+constexpr int kFtpLookupTimeoutSeconds = 90;
+
 // Same for <ftp base>/<project>/ on the FTP server, listed over a
-// separate connection. Blocking (up to the connect/response timeouts if
-// the server is unreachable) - call off the GUI thread. A directory the
+// separate connection. Blocking (up to kFtpLookupTimeoutSeconds if the
+// server is unreachable or asleep) - call off the GUI thread. A directory the
 // server refuses to enter counts as not existing yet (the upload would
 // fail the same way, so nothing can be overwritten); a connection or
 // login failure is an error.
