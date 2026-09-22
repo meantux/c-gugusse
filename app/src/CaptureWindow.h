@@ -92,6 +92,9 @@ private slots:
 	void onFrameReady(QImage image, bool zoomed, QVector<quint32> histogram);
 	void onHistogramToggled(bool enabled);
 	void onLightToggled(bool on);
+	void onHFlipToggled(bool enabled);
+	void onVFlipToggled(bool enabled);
+	void onInvertToggled(bool enabled);
 	void onControlChanged();
 	void onCaptureFormatChanged(int index);
 	void onCaptureFrameClicked();
@@ -162,6 +165,19 @@ private:
 	QPushButton *histogramToggleButton_ = nullptr;
 	HistogramWidget *histogramWidget_ = nullptr;
 	QTimer *histogramAutoOffTimer_ = nullptr;
+
+	// Preview-only orientation/colour toggles. hFlip_/vFlip_ are also
+	// recorded in captured DNGs' Orientation tag (see captureAndStage())
+	// so viewers/editors show the frame the same way the preview did - the
+	// raw pixels themselves are never flipped (that would require
+	// remapping the CFA pattern). invert_ is for scanning negative film:
+	// it only affects what's drawn on screen, never a saved file.
+	QPushButton *hFlipButton_ = nullptr;
+	QPushButton *vFlipButton_ = nullptr;
+	QPushButton *invertButton_ = nullptr;
+	bool hFlip_ = false;
+	bool vFlip_ = false;
+	bool invertPreview_ = false;
 
 	std::optional<hqcore::LightController> light_;
 	std::unique_ptr<hqcore::HqCamera> camera_;

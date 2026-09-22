@@ -122,7 +122,14 @@ bool writeDng(const std::string &path, int width, int height,
 	ok &= TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, kRowsPerStrip) == 1;
-	ok &= TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT) == 1;
+	// TIFF/DNG Orientation values match EXIF's: mirroring only (no
+	// rotation) is all the hflip/vflip toggles need - TOPLEFT(1)/
+	// TOPRIGHT(2, mirror horizontal)/BOTRIGHT(3, mirror both = 180
+	// degrees)/BOTLEFT(4, mirror vertical).
+	const uint16_t orientation = meta.hFlip
+					      ? (meta.vFlip ? ORIENTATION_BOTRIGHT : ORIENTATION_TOPRIGHT)
+					      : (meta.vFlip ? ORIENTATION_BOTLEFT : ORIENTATION_TOPLEFT);
+	ok &= TIFFSetField(tif, TIFFTAG_ORIENTATION, orientation) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_MAKE, meta.make.c_str()) == 1;
 	ok &= TIFFSetField(tif, TIFFTAG_MODEL, meta.model.c_str()) == 1;
 	if (!meta.description.empty())

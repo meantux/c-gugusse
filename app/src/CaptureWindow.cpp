@@ -159,6 +159,21 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	histogramToggleButton_ = new QPushButton("Histogram", central);
 	histogramToggleButton_->setCheckable(true);
 	topRow->addWidget(histogramToggleButton_);
+	hFlipButton_ = new QPushButton("H-Flip", central);
+	hFlipButton_->setCheckable(true);
+	hFlipButton_->setToolTip("Flip the preview horizontally.\n"
+				 "Also recorded in a captured DNG's Orientation tag.");
+	topRow->addWidget(hFlipButton_);
+	vFlipButton_ = new QPushButton("V-Flip", central);
+	vFlipButton_->setCheckable(true);
+	vFlipButton_->setToolTip("Flip the preview vertically.\n"
+				 "Also recorded in a captured DNG's Orientation tag.");
+	topRow->addWidget(vFlipButton_);
+	invertButton_ = new QPushButton("Invert", central);
+	invertButton_->setCheckable(true);
+	invertButton_->setToolTip("Invert preview colours, for eyeballing a negative while "
+				  "scanning.\nPreview only - never affects a captured file.");
+	topRow->addWidget(invertButton_);
 	saveSettingsButton_ = new QPushButton("Save Settings", central);
 	topRow->addWidget(saveSettingsButton_);
 	layout->addLayout(topRow);
@@ -275,6 +290,9 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	connect(histogramToggleButton_, &QPushButton::toggled, this,
 		&CaptureWindow::onHistogramToggled);
 	connect(lightButton_, &QPushButton::toggled, this, &CaptureWindow::onLightToggled);
+	connect(hFlipButton_, &QPushButton::toggled, this, &CaptureWindow::onHFlipToggled);
+	connect(vFlipButton_, &QPushButton::toggled, this, &CaptureWindow::onVFlipToggled);
+	connect(invertButton_, &QPushButton::toggled, this, &CaptureWindow::onInvertToggled);
 	connect(previewLabel_, &ClickableLabel::clicked, this, &CaptureWindow::onPreviewClicked);
 	connect(saveSettingsButton_, &QPushButton::clicked, this,
 		&CaptureWindow::onSaveSettingsClicked);
@@ -558,6 +576,13 @@ void CaptureWindow::resumeCameraAfterFaultAcknowledged() {
 }
 
 void CaptureWindow::onFrameReady(QImage image, bool zoomed, QVector<quint32> histogram) {
+	// Preview-only orientation/colour toggles (see the members' comment in
+	// the header) - never touch the raw frame data, just what's drawn.
+	if (hFlip_ || vFlip_)
+		image = image.mirrored(hFlip_, vFlip_);
+	if (invertPreview_)
+		image.invertPixels();
+
 	// The zoom view is one displayed pixel per Bayer quad; show it at 2x so
 	// sensor pixels appear at their true size.
 	if (zoomed) {
@@ -587,6 +612,12 @@ void CaptureWindow::onLightToggled(bool on) {
 	if (light_)
 		light_->set(on ? LightController::Color::White : LightController::Color::Off);
 }
+
+void CaptureWindow::onHFlipToggled(bool enabled) { hFlip_ = enabled; }
+
+void CaptureWindow::onVFlipToggled(bool enabled) { vFlip_ = enabled; }
+
+void CaptureWindow::onInvertToggled(bool enabled) { invertPreview_ = enabled; }
 
 void CaptureWindow::onPreviewClicked(QPoint pos) {
 	if (!camera_)
@@ -720,6 +751,8 @@ bool CaptureWindow::captureAndStage(std::atomic<bool> *abort, QString &fileName)
 		meta.blueGain = still->blueGain;
 		meta.hasCcm = still->hasCcm;
 		meta.ccm = still->ccm;
+		meta.hFlip = hFlip_;
+		meta.vFlip = vFlip_;
 		meta.description = QString("exposure %1us, red gain %2, blue gain %3")
 					   .arg(still->exposureUs)
 					   .arg(still->redGain, 0, 'f', 3)

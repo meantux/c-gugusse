@@ -31,6 +31,12 @@ struct DngMetadata {
 	bool hasCcm = false;
 	std::array<float, 9> ccm{1, 0, 0, 0, 1, 0, 0, 0, 1};
 
+	// Orientation set by the operator in the preview (hflip/vflip toggle
+	// buttons). The raw pixels are written unchanged - this only sets the
+	// DNG's Orientation tag, which viewers/editors apply on load.
+	bool hFlip = false;
+	bool vFlip = false;
+
 	std::string make = "Raspberry Pi";
 	std::string model = "HQ Camera";
 	std::string description; // ImageDescription tag; free text
