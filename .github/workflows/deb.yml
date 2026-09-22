@@ -53,6 +53,20 @@ jobs:
           apt-get install -y --no-install-recommends debhelper fakeroot dpkg-dev lintian
           apt-get build-dep -y ./
 
+      - name: Set the package version from the tag
+        # dpkg-buildpackage names the .deb from debian/changelog's version,
+        # not from the git ref, so without this every tag builds the same
+        # c-gugusse_0.1.0_arm64.deb. Only tag pushes bump it (plain
+        # branch/PR builds keep whatever's committed, which is fine since
+        # those never get released).
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          # v0.1.2-beta -> 0.1.2~beta (tilde sorts before the plain
+          # release in Debian version comparisons, as a pre-release should).
+          version="${GITHUB_REF_NAME#v}"
+          version="${version/-/\~}"
+          sed -i "0,/^c-gugusse (.*)/s//c-gugusse (${version})/" debian/changelog
+
       - name: Build
         run: dpkg-buildpackage -us -uc -b
 

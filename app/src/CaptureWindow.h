@@ -192,6 +192,12 @@ private:
 	// True if any saved setting has changed since the last successful
 	// Save Settings - drives closeEvent()'s exit warning.
 	bool hasUnsavedSettings() const;
+	// True if the light is on or any motor is enabled - drives
+	// closeEvent()'s "turn off before exiting?" prompt.
+	bool anyHardwareOn() const;
+	// Turns the light off and disables every motor - used by closeEvent()
+	// when the operator chooses to turn everything off before exiting.
+	void turnOffAllHardware();
 
 	// Runs a single manual capture off the GUI thread (the capture waits
 	// for fresh camera frames and writing a 12MP file takes a while).
@@ -359,6 +365,13 @@ private:
 	bool applyFilmFormat(const QString &name);
 	QPushButton *sequenceButton_ = nullptr;
 	QPushButton *emergencyStopButton_ = nullptr;
+	// Closes the window (see closeEvent()) - disabled while a sequence is
+	// running, matching sequenceButton_/motor/etc.'s own disabling in
+	// startSequence()/onSequenceFinished(). Wired straight to
+	// QWidget::close() rather than a dedicated slot; all the actual
+	// exit logic lives in closeEvent(), so Alt+F4/the window's close box
+	// get exactly the same checks.
+	QPushButton *quitButton_ = nullptr;
 	std::thread sequenceThread_;
 	std::atomic<bool> sequenceRunning_{false};
 	std::atomic<bool> gentleStopRequested_{false};

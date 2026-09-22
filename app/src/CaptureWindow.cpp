@@ -264,10 +264,13 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	emergencyStopButton_->setMinimumWidth(160);
 	emergencyStopButton_->setStyleSheet(
 		"background-color: #c0392b; color: white; font-weight: bold;");
+	quitButton_ = new QPushButton("Quit", central);
+	quitButton_->setMinimumWidth(100);
 	bottomRow->addWidget(statusLabel_, /*stretch=*/1);
 	bottomRow->addWidget(captureFrameButton_);
 	bottomRow->addWidget(sequenceButton_);
 	bottomRow->addWidget(emergencyStopButton_);
+	bottomRow->addWidget(quitButton_);
 	layout->addLayout(bottomRow);
 
 	setCentralWidget(central);
@@ -306,6 +309,7 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	indexUiTimer_->start();
 	connect(emergencyStopButton_, &QPushButton::clicked, this,
 		&CaptureWindow::onEmergencyStopClicked);
+	connect(quitButton_, &QPushButton::clicked, this, &QWidget::close);
 	connect(this, &CaptureWindow::sequenceStatusChanged, this,
 		&CaptureWindow::onSequenceStatusChanged);
 	connect(this, &CaptureWindow::sequenceFinished, this, &CaptureWindow::onSequenceFinished);
@@ -699,23 +703,71 @@ bool CaptureWindow::hasUnsavedSettings() const {
 	return kCaptureFormatNames[formatIndex(selectedCaptureFormat())] != lastSavedCaptureFormat_;
 }
 
-void CaptureWindow::closeEvent(QCloseEvent *event) {
-	if (!hasUnsavedSettings()) {
-		event->accept();
-		return;
+bool CaptureWindow::anyHardwareOn() const {
+	if (light_ && light_->current() != LightController::Color::Off)
+		return true;
+	for (const auto &row : motorRows_) {
+		if (row.motor && row.motor->isEnabled())
+			return true;
 	}
+	return false;
+}
 
-	const auto choice = QMessageBox::warning(
-		this, "Unsaved settings",
-		"Camera, film format or capture format settings have changed but haven't "
-		"been saved. Save before exiting?",
-		QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
-	if (choice == QMessageBox::Cancel) {
+void CaptureWindow::turnOffAllHardware() {
+	if (light_)
+		light_->set(LightController::Color::Off);
+	for (auto &row : motorRows_) {
+		if (row.motor && row.motor->isEnabled())
+			row.motor->disable();
+	}
+}
+
+void CaptureWindow::closeEvent(QCloseEvent *event) {
+	// Same path for the Quit button, the window's close box, and Alt+F4 -
+	// all of them end up here. quitButton_ is disabled during a sequence,
+	// but Alt+F4/the close box aren't, so this is the one place that has
+	// to actually refuse the close.
+	if (sequenceRunning_) {
+		QMessageBox::warning(this, "Sequence running",
+				      "A sequence is currently running. Stop it before exiting.");
 		event->ignore();
 		return;
 	}
-	if (choice == QMessageBox::Save)
-		onSaveSettingsClicked();
+
+	if (hasUnsavedSettings()) {
+		const auto choice = QMessageBox::warning(
+			this, "Unsaved settings",
+			"Camera, film format or capture format settings have changed but haven't "
+			"been saved. Save before exiting?",
+			QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+			QMessageBox::Save);
+		if (choice == QMessageBox::Cancel) {
+			event->ignore();
+			return;
+		}
+		if (choice == QMessageBox::Save)
+			onSaveSettingsClicked();
+	}
+
+	if (anyHardwareOn()) {
+		QMessageBox box(this);
+		box.setIcon(QMessageBox::Question);
+		box.setWindowTitle("Motors / light on");
+		box.setText("A motor is enabled and/or the light is on.\n"
+			    "Turn everything off before exiting, or leave it as is?");
+		QPushButton *turnOffButton = box.addButton("Turn Off", QMessageBox::AcceptRole);
+		box.addButton("Leave As Is", QMessageBox::DestructiveRole);
+		QPushButton *cancelButton = box.addButton(QMessageBox::Cancel);
+		box.setDefaultButton(turnOffButton);
+		box.exec();
+		if (box.clickedButton() == cancelButton) {
+			event->ignore();
+			return;
+		}
+		if (box.clickedButton() == turnOffButton)
+			turnOffAllHardware();
+	}
+
 	event->accept();
 }
 
@@ -1573,6 +1625,9 @@ void CaptureWindow::startSequence() {
 	// (The camera controls stay live: a frame is only ever kept once it
 	// provably reflects the current settings, see HqCamera::captureStill.)
 	captureFormatCombo_->setEnabled(false);
+	// Motors/lights must stay reachable (Emergency Stop, motor power) for
+	// the whole run - quitting mid-sequence would leave that unattended.
+	quitButton_->setEnabled(false);
 	for (auto &row : motorRows_) {
 		row.ccwButton->setEnabled(false);
 		row.powerButton->setEnabled(false);
@@ -1673,6 +1728,7 @@ void CaptureWindow::onSequenceFinished() {
 	filmFormatCombo_->setEnabled(filmFormatCombo_->count() > 0);
 	otherSettingsButton_->setEnabled(true);
 	captureFormatCombo_->setEnabled(true);
+	quitButton_->setEnabled(true);
 	for (auto &row : motorRows_) {
 		if (!row.motor)
 			continue;
