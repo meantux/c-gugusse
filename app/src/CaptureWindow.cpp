@@ -83,6 +83,9 @@ constexpr const char *kMotorNames[3] = {"feeder", "filmdrive", "pickup"};
 
 constexpr const char *kCaptureFormatNames[2] = {"DNG", "JPG"};
 constexpr const char *kCaptureFormatSuffixes[2] = {"dng", "jpg"};
+// Reel direction combo items, index 0 = CCW (the default - what the
+// sequence always used before this was selectable).
+constexpr const char *kReelDirectionNames[2] = {"CCW", "CW"};
 
 // Numpad motor jog/toggle shortcuts (see CaptureWindow::keyPressEvent):
 // numpad 7/8/9 sit above 4/5/6 above 1/2/3, mirroring feeder/filmdrive/
@@ -195,6 +198,13 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	projectRow->addWidget(new QLabel("Film format:", central));
 	filmFormatCombo_ = new QComboBox(central);
 	projectRow->addWidget(filmFormatCombo_);
+	projectRow->addWidget(new QLabel("Reels:", central));
+	reelDirectionCombo_ = new QComboBox(central);
+	reelDirectionCombo_->addItem(QIcon(kCcwIconPath), kReelDirectionNames[0]);
+	reelDirectionCombo_->addItem(QIcon(kCwIconPath), kReelDirectionNames[1]);
+	reelDirectionCombo_->setToolTip(
+		"Direction the feeder and pickup both turn during a sequence.");
+	projectRow->addWidget(reelDirectionCombo_);
 	otherSettingsButton_ = new QPushButton("Other settings...", central);
 	otherSettingsButton_->setToolTip(
 		"Export mode (FTP upload / local copy), FTP server, motor directions.");
@@ -381,6 +391,13 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	}
 	connect(captureFormatCombo_, &QComboBox::currentIndexChanged, this,
 		&CaptureWindow::onCaptureFormatChanged);
+
+	// Reel direction: saved preference, else CCW.
+	{
+		const int index = prefs.reelDirection == kReelDirectionNames[1] ? 1 : 0;
+		lastSavedReelDirection_ = kReelDirectionNames[index];
+		reelDirectionCombo_->setCurrentIndex(index);
+	}
 
 	sensorPollTimer_ = new QTimer(this);
 	sensorPollTimer_->setInterval(kSensorPollMs);
@@ -657,10 +674,13 @@ void CaptureWindow::onSaveSettingsClicked() {
 		filmFormatCombo_ ? filmFormatCombo_->currentText().toStdString() : std::string();
 	const std::string currentCaptureFormat =
 		kCaptureFormatNames[formatIndex(selectedCaptureFormat())];
+	const std::string currentReelDirection =
+		kReelDirectionNames[reelDirectionCombo_->currentIndex()];
 
 	const bool cameraChanged = !(current == lastSavedSettings_);
 	const bool prefsChanged = currentFilmFormat != lastSavedFilmFormatName_ ||
-				  currentCaptureFormat != lastSavedCaptureFormat_;
+				  currentCaptureFormat != lastSavedCaptureFormat_ ||
+				  currentReelDirection != lastSavedReelDirection_;
 	if (!cameraChanged && !prefsChanged) {
 		statusBar()->showMessage("Nothing to save.", 3000);
 		return;
@@ -679,9 +699,11 @@ void CaptureWindow::onSaveSettingsClicked() {
 		hqcore::Preferences prefs;
 		prefs.filmFormat = currentFilmFormat;
 		prefs.captureFormat = currentCaptureFormat;
+		prefs.reelDirection = currentReelDirection;
 		if (prefs.save(kPreferencesPath)) {
 			lastSavedFilmFormatName_ = currentFilmFormat;
 			lastSavedCaptureFormat_ = currentCaptureFormat;
+			lastSavedReelDirection_ = currentReelDirection;
 		} else {
 			ok = false;
 		}
@@ -700,7 +722,14 @@ bool CaptureWindow::hasUnsavedSettings() const {
 	    filmFormatCombo_->currentText().toStdString() != lastSavedFilmFormatName_) {
 		return true;
 	}
+	if (kReelDirectionNames[reelDirectionCombo_->currentIndex()] != lastSavedReelDirection_)
+		return true;
 	return kCaptureFormatNames[formatIndex(selectedCaptureFormat())] != lastSavedCaptureFormat_;
+}
+
+hqcore::MotorDirection CaptureWindow::selectedReelDirection() const {
+	return reelDirectionCombo_->currentIndex() == 1 ? hqcore::MotorDirection::Cw
+							: hqcore::MotorDirection::Ccw;
 }
 
 bool CaptureWindow::anyHardwareOn() const {
@@ -1384,6 +1413,7 @@ void CaptureWindow::runSequenceLoop() {
 	hqcore::Motor &filmdrive = *motorRows_[MotorFilmdrive].motor;
 	hqcore::Motor &pickup = *motorRows_[MotorPickup].motor;
 	const auto &fmt = *filmFormat_;
+	const hqcore::MotorDirection reelDirection = sequenceReelDirection_;
 	bool problemStop = false; // true for any fault/error break (not gentle, not emergency)
 
 	// Recalibrates feeder/pickup's peak "speed" cycle to cycle so the arm
@@ -1465,13 +1495,13 @@ void CaptureWindow::runSequenceLoop() {
 		hqcore::MotionOutcome pickupOutcome;
 		std::thread feederThread([&] {
 			feederOutcome = feeder.moveTriangleUntilSensor(
-				hqcore::MotorDirection::Ccw, feederSpeedAdapter.currentSpeed(),
+				reelDirection, feederSpeedAdapter.currentSpeed(),
 				feederSpeedAdapter.currentSpeed2(), fmt.feeder.targetTime,
 				fmt.feeder.faultTreshold, emergencyStopRequested_);
 		});
 		std::thread pickupThread([&] {
 			pickupOutcome = pickup.moveTriangleUntilSensor(
-				hqcore::MotorDirection::Ccw, pickupSpeedAdapter.currentSpeed(),
+				reelDirection, pickupSpeedAdapter.currentSpeed(),
 				pickupSpeedAdapter.currentSpeed2(), fmt.pickup.targetTime,
 				fmt.pickup.faultTreshold, emergencyStopRequested_);
 		});
@@ -1619,6 +1649,7 @@ void CaptureWindow::startSequence() {
 	saveSettingsButton_->setEnabled(false);
 	projectEdit_->setEnabled(false);
 	filmFormatCombo_->setEnabled(false);
+	reelDirectionCombo_->setEnabled(false);
 	// Export mode/motor directions must not change under a running sequence.
 	otherSettingsButton_->setEnabled(false);
 	// Switching format restarts the camera - not while a run is in flight.
@@ -1639,6 +1670,7 @@ void CaptureWindow::startSequence() {
 
 	if (sequenceThread_.joinable())
 		sequenceThread_.join();
+	sequenceReelDirection_ = selectedReelDirection();
 	sequenceThread_ = std::thread(&CaptureWindow::runSequenceLoop, this);
 }
 
@@ -1726,6 +1758,7 @@ void CaptureWindow::onSequenceFinished() {
 	saveSettingsButton_->setEnabled(true);
 	projectEdit_->setEnabled(true);
 	filmFormatCombo_->setEnabled(filmFormatCombo_->count() > 0);
+	reelDirectionCombo_->setEnabled(true);
 	otherSettingsButton_->setEnabled(true);
 	captureFormatCombo_->setEnabled(true);
 	quitButton_->setEnabled(true);

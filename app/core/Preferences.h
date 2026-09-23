@@ -8,12 +8,14 @@ namespace hqcore {
 // deliberately separate from hardwarecfg.json (the film formats' actual
 // speed/limit data - hardware/installation config, not a per-user choice)
 // and from hq-camera-settings.json (camera exposure/white balance values,
-// an unrelated concern). Currently the selected film format and the
-// still-capture file format; room to grow with more preferences later
+// an unrelated concern). Currently the selected film format, the
+// still-capture file format and the feeder/pickup reel direction; room
+// to grow with more preferences later
 // without disturbing either of those files.
 struct Preferences {
 	std::string filmFormat;    // empty if never saved
 	std::string captureFormat; // "DNG" or "JPG"; empty if never saved
+	std::string reelDirection; // "CCW" or "CW"; empty if never saved
 
 	// Loads from `path`. Returns default-constructed preferences (as
 	// above) if the file doesn't exist or fails to parse - never throws,

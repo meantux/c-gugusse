@@ -183,12 +183,13 @@ private:
 	std::unique_ptr<hqcore::HqCamera> camera_;
 
 	// Persisted camera settings (core/CameraSettings.h). Save Settings also
-	// persists the film format and capture format to preferences.json via
-	// core/Preferences.h.
+	// persists the film format, capture format and reel direction to
+	// preferences.json via core/Preferences.h.
 	QPushButton *saveSettingsButton_ = nullptr;
 	hqcore::CameraSettings lastSavedSettings_;
 	std::string lastSavedFilmFormatName_;
 	std::string lastSavedCaptureFormat_;
+	std::string lastSavedReelDirection_;
 	// True if any saved setting has changed since the last successful
 	// Save Settings - drives closeEvent()'s exit warning.
 	bool hasUnsavedSettings() const;
@@ -363,6 +364,14 @@ private:
 	// onFilmFormatChanged() so they can't drift apart. Returns whether
 	// the format loaded successfully.
 	bool applyFilmFormat(const QString &name);
+	// Which way feeder and pickup both turn during a sequence (one
+	// setting for both). Persisted to preferences.json with the film
+	// format; read once at sequence start, and locked while one runs.
+	QComboBox *reelDirectionCombo_ = nullptr;
+	hqcore::MotorDirection selectedReelDirection() const;
+	// selectedReelDirection() snapshotted by startSequence() on the GUI
+	// thread, for runSequenceLoop() to use without touching the widget.
+	hqcore::MotorDirection sequenceReelDirection_ = hqcore::MotorDirection::Ccw;
 	QPushButton *sequenceButton_ = nullptr;
 	QPushButton *emergencyStopButton_ = nullptr;
 	// Closes the window (see closeEvent()) - disabled while a sequence is

@@ -26,6 +26,7 @@ Preferences Preferences::load(const std::string &path) {
 	try {
 		prefs.filmFormat = root.value("filmFormat", prefs.filmFormat);
 		prefs.captureFormat = root.value("captureFormat", prefs.captureFormat);
+		prefs.reelDirection = root.value("reelDirection", prefs.reelDirection);
 	} catch (const nlohmann::json::exception &) {
 		return Preferences{};
 	}
@@ -36,6 +37,7 @@ bool Preferences::save(const std::string &path) const {
 	nlohmann::json root;
 	root["filmFormat"] = filmFormat;
 	root["captureFormat"] = captureFormat;
+	root["reelDirection"] = reelDirection;
 
 	const std::string tmpPath = path + ".tmp";
 	{

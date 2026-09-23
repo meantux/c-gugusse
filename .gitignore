@@ -8,3 +8,5 @@ debian/debhelper-build-stamp
 *.deb
 *.buildinfo
 *.changes
+obj-aarch64-linux-gnu/
+
