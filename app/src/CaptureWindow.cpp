@@ -1,5 +1,6 @@
 #include "CaptureWindow.h"
 
+#include <QAbstractItemView>
 #include <QApplication>
 #include <QCloseEvent>
 #include <QComboBox>
@@ -204,6 +205,10 @@ CaptureWindow::CaptureWindow(QWidget *parent) : QMainWindow(parent) {
 	reelDirectionCombo_->addItem(QIcon(kCwIconPath), kReelDirectionNames[1]);
 	reelDirectionCombo_->setToolTip(
 		"Direction the feeder and pickup both turn during a sequence.");
+	// The popup list defaults to the combo's own width, which with the
+	// icons is too narrow and elides "CCW" to dots - size it to its items.
+	reelDirectionCombo_->view()->setMinimumWidth(
+		reelDirectionCombo_->view()->sizeHintForColumn(0) + 16);
 	projectRow->addWidget(reelDirectionCombo_);
 	otherSettingsButton_ = new QPushButton("Other settings...", central);
 	otherSettingsButton_->setToolTip(
