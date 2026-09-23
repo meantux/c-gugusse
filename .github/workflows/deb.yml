@@ -64,7 +64,7 @@ jobs:
           # v0.1.2-beta -> 0.1.2~beta (tilde sorts before the plain
           # release in Debian version comparisons, as a pre-release should).
           version="${GITHUB_REF_NAME#v}"
-          version="${version/-/\~}"
+          version=$(printf %s "$version" | sed 's/-/~/')
           sed -i "0,/^c-gugusse (.*)/s//c-gugusse (${version})/" debian/changelog
 
       - name: Build
