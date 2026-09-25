@@ -129,6 +129,10 @@ struct HqCamera::Impl {
 	int rawWidth = 0;
 	int rawHeight = 0;
 	size_t rawStride = 0;
+	// Right shift that brings a raw sample down to its 12-bit value: 0 when
+	// the samples are LSB-aligned 12-bit (Pi 4), 4 when they arrive as
+	// MSB-aligned 16-bit (Pi 5 - its CSI-2 receiver unpacks that way).
+	int rawShift = 0;
 	int previewWidth = 0;
 	int previewHeight = 0;
 	size_t previewStride = 0;
@@ -292,7 +296,7 @@ struct HqCamera::Impl {
 			// Unpacked 12-bit samples should never exceed 4095; mask so a
 			// stray high bit can't produce out-of-range DNG values.
 			for (auto &v : s.raw)
-				v &= 0x0FFF;
+				v = (v >> rawShift) & 0x0FFF;
 			s.cfaPattern = cfa;
 			s.blackLevel = meta.blackLevel12.value_or(256);
 			s.whiteLevel = 4095;
@@ -412,7 +416,7 @@ struct HqCamera::Impl {
 				float r = 0, g = 0, b = 0;
 				int greens = 0;
 				for (int k = 0; k < 4; ++k) {
-					const float v = s[k] & 0x0FFF;
+					const float v = (s[k] >> rawShift) & 0x0FFF;
 					if (cfa[k] == 0)
 						r = v;
 					else if (cfa[k] == 2)
@@ -475,7 +479,7 @@ struct HqCamera::Impl {
 						std::memcpy(scratchRaw.data(), src + static_cast<size_t>(y) * rawStride,
 							    rawStride * 2);
 						accumulateRaw12Histogram(hist, scratchRaw.data(), rawStride,
-									 rawWidth, 2, 2);
+									 rawWidth, 2, 2, rawShift);
 					}
 					haveHist = true;
 				}
@@ -582,10 +586,16 @@ bool HqCamera::start(CaptureFormat format, PreviewCallback onPreview, std::strin
 	}
 
 	StreamConfiguration &rawCfg = s.config->at(0);
-	// Unpacked 12-bit raw at the sensor's full resolution (this also picks
-	// the sensor's 12-bit full-frame mode).
+	// Unpacked 12-bit raw at the sensor's full resolution. The Pi 5 can't
+	// deliver 12-bit unpacked and substitutes 16-bit (see rawShift); the
+	// DNG is packed to 12 bits in software either way.
 	rawCfg.pixelFormat = formats::SRGGB12;
 	rawCfg.bufferCount = kBufferCount;
+	// Pin the sensor's 12-bit full-frame mode explicitly, whatever raw
+	// format the pipeline ends up choosing for the stream.
+	s.config->sensorConfig = SensorConfiguration();
+	s.config->sensorConfig->bitDepth = 12;
+	s.config->sensorConfig->outputSize = rawCfg.size;
 
 	StreamConfiguration *mainCfg = nullptr;
 	if (format == CaptureFormat::Jpg) {
@@ -606,14 +616,17 @@ bool HqCamera::start(CaptureFormat format, PreviewCallback onPreview, std::strin
 	}
 
 	// validate() may adjust things (notably the Bayer order, which depends
-	// on the sensor's flip state) - read back what we actually got.
+	// on the sensor's flip state, and the Pi 5 turning 12-bit into 16-bit)
+	// - read back what we actually got.
 	const std::string rawName = rawCfg.pixelFormat.toString();
-	if (rawName.size() < 7 || rawName[0] != 'S' || rawName.compare(5, 2, "12") != 0 ||
-	    rawName.find("CSI2P") != std::string::npos) {
-		error = "Unexpected raw pixel format \"" + rawName + "\" (need unpacked 12-bit Bayer).";
+	if (rawName.size() != 7 || rawName[0] != 'S' ||
+	    (rawName.compare(5, 2, "12") != 0 && rawName.compare(5, 2, "16") != 0)) {
+		error = "Unexpected raw pixel format \"" + rawName +
+			"\" (need unpacked 12- or 16-bit Bayer).";
 		s.config.reset();
 		return false;
 	}
+	s.rawShift = rawName.compare(5, 2, "16") == 0 ? 4 : 0;
 	for (int i = 0; i < 4; ++i) {
 		switch (rawName[1 + i]) {
 		case 'R': s.cfa[i] = 0; break;

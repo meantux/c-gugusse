@@ -24,9 +24,10 @@ struct Histogram {
 //
 // `rows` points at the first byte of row 0; `strideBytes` is the distance
 // in bytes between rows (libcamera's stride, which can exceed
-// width*2). Samples are unpacked 16-bit little-endian words with the
-// value in the low 12 bits - anything above bit 11 is masked off.
+// width*2). Samples are unpacked 16-bit little-endian words; each is
+// shifted right by `shift` (0 for LSB-aligned 12-bit data, 4 for
+// MSB-aligned 16-bit) and anything above bit 11 is then masked off.
 void accumulateRaw12Histogram(Histogram &out, const uint8_t *rows, size_t strideBytes,
-			      int width, int height, int rowPeriod);
+			      int width, int height, int rowPeriod, int shift = 0);
 
 } // namespace hqcore

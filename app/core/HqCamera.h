@@ -85,8 +85,8 @@ struct StillCapture {
 };
 
 // Drives a libcamera-supported camera (built and tested with the Raspberry
-// Pi HQ camera, IMX477, on a Pi 4B) with fully manual exposure and white
-// balance - no auto-exposure / auto-white-balance, ever.
+// Pi HQ camera, IMX477, on a Pi 4B and a Pi 5) with fully manual exposure
+// and white balance - no auto-exposure / auto-white-balance, ever.
 //
 // Streams while running:
 //  - a 12-bit raw stream at the sensor's full resolution (for the raw
